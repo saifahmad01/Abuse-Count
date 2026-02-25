@@ -2,68 +2,127 @@ import { useState, useEffect } from "react";
 import FriendCard from "./Components/FriendCard.jsx";
 import AddFriend from "./Components/AddFriend.jsx";
 import "./App.css";
+import { db } from "./firebase";
+import {
+  collection,
+  onSnapshot,
+  setDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  arrayUnion,
+  query,
+  orderBy
+} from "firebase/firestore";
 
 function App() {
   const [friends, setFriends] = useState([]);
   const [currentSection, setCurrentSection] = useState("home"); // home, leaderboard, stats, profile
 
-  // Load from localStorage
+  // Real-time listener from Firestore
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("friends")) || [];
-    setFriends(saved);
+    if (!db) return;
+    const q = query(collection(db, "friends"), orderBy("name"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const friendsList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setFriends(friendsList);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Save to localStorage
-  useEffect(() => {
-    localStorage.setItem("friends", JSON.stringify(friends));
-  }, [friends]);
-
-  const addFriend = (name, image) => {
+  const addFriend = async (name, image) => {
+    if (!db) {
+      alert("Database not connected. Check your configuration.");
+      return;
+    }
+    const id = Date.now().toString();
     const newFriend = {
-      id: Date.now(),
       name,
       count: 0,
-      image: image,
+      image: image || "",
       history: [], // Store { count, message, timestamp }
     };
-    setFriends([...friends, newFriend]);
+
+    try {
+      await setDoc(doc(db, "friends", id), newFriend);
+    } catch (error) {
+      console.error("Error adding friend: ", error);
+    }
   };
 
-  const increase = (id, message = "No message provided") => {
-    setFriends(
-      friends.map((f) => {
-        if (f.id === id) {
-          const newCount = f.count + 1;
-          const newHistoryItem = {
-            count: newCount,
-            message: message,
-            timestamp: new Date().toLocaleString(),
-          };
-          return {
-            ...f,
-            count: newCount,
-            history: [...f.history, newHistoryItem], // Oldest logs first, new at bottom
-          };
-        }
-        return f;
-      })
-    );
+  const increase = async (id, message = "No message provided") => {
+    if (!db) return;
+    const friendRef = doc(db, "friends", id);
+    const friend = friends.find(f => f.id === id);
+
+    if (!friend) return;
+
+    const newCount = friend.count + 1;
+    const newHistoryItem = {
+      count: newCount,
+      message: message,
+      timestamp: new Date().toLocaleString(),
+    };
+
+    try {
+      await updateDoc(friendRef, {
+        count: newCount,
+        history: arrayUnion(newHistoryItem)
+      });
+    } catch (error) {
+      console.error("Error increasing count: ", error);
+    }
   };
 
-  const decrease = (id) => {
-    setFriends(
-      friends.map((f) =>
-        f.id === id ? { ...f, count: Math.max(0, f.count - 1) } : f
-      )
-    );
+  const decrease = async (id) => {
+    if (!db) return;
+    const friendRef = doc(db, "friends", id);
+    const friend = friends.find(f => f.id === id);
+
+    if (!friend || friend.count <= 0) return;
+
+    // Create a copy of the history and remove the last item
+    const newHistory = [...(friend.history || [])];
+    newHistory.pop();
+
+    try {
+      await updateDoc(friendRef, {
+        count: friend.count - 1,
+        history: newHistory
+      });
+    } catch (error) {
+      console.error("Error decreasing count: ", error);
+    }
   };
 
-  const deleteFriend = (id) => {
-    setFriends(friends.filter((f) => f.id !== id));
+  const deleteFriend = async (id) => {
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, "friends", id));
+    } catch (error) {
+      console.error("Error deleting friend: ", error);
+    }
   };
 
   const totalCount = friends.reduce((acc, f) => acc + f.count, 0);
   const sortedFriends = [...friends].sort((a, b) => b.count - a.count);
+
+
+
+  if (!db) {
+    return (
+      <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', textAlign: 'center', gap: '20px' }}>
+        <h2 style={{ color: '#ef4444' }}>Firebase Connection Error</h2>
+        <p>Your `.env` file might be missing or configured incorrectly.</p>
+        <p>Please check the console for details.</p>
+        <button onClick={() => window.location.reload()} className="cyber-btn-pill">Retry Connection</button>
+      </div>
+    );
+  }
 
   return (
     <div className="container">
