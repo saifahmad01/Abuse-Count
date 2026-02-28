@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import FriendCard from "./Components/FriendCard.jsx";
 import AddFriend from "./Components/AddFriend.jsx";
+import HistoryItem from "./Components/HistoryItem.jsx";
 import "./App.css";
 import { db } from "./firebase";
 import {
@@ -18,6 +19,10 @@ import {
 function App() {
   const [friends, setFriends] = useState([]);
   const [currentSection, setCurrentSection] = useState("home"); // home, leaderboard, stats, profile
+  const [isConfirmingLogDelete, setIsConfirmingLogDelete] = useState(false);
+  const [logDeletePin, setLogDeletePin] = useState("");
+  const [targetFriendId, setTargetFriendId] = useState(null);
+  const [targetLogIndex, setTargetLogIndex] = useState(null);
 
   // Real-time listener from Firestore
   useEffect(() => {
@@ -108,7 +113,53 @@ function App() {
     }
   };
 
-  const totalCount = friends.reduce((acc, f) => acc + f.count, 0);
+  const deleteHistoryItem = async (friendId, itemIndex) => {
+    if (!db) return;
+    const friendRef = doc(db, "friends", friendId);
+    const friend = friends.find(f => f.id === friendId);
+
+    if (!friend || !friend.history) return;
+
+    // Create a new history array without the target item
+    const updatedHistory = friend.history.filter((_, idx) => idx !== itemIndex);
+
+    // Re-index counts sequentially
+    const reindexedHistory = updatedHistory.map((item, idx) => ({
+      ...item,
+      count: idx + 1
+    }));
+
+    try {
+      await updateDoc(friendRef, {
+        count: reindexedHistory.length,
+        history: reindexedHistory
+      });
+    } catch (error) {
+      console.error("Error deleting history item: ", error);
+    }
+  };
+
+  const handleLogDeleteRequest = (friendId, index) => {
+    setTargetFriendId(friendId);
+    setTargetLogIndex(index);
+    setIsConfirmingLogDelete(true);
+  };
+
+  const handleLogPinSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (logDeletePin === "786") {
+      deleteHistoryItem(targetFriendId, targetLogIndex);
+      setIsConfirmingLogDelete(false);
+      setLogDeletePin("");
+      setTargetFriendId(null);
+      setTargetLogIndex(null);
+    } else {
+      alert("Incorrect PIN!");
+      setLogDeletePin("");
+    }
+  };
+
+  const totalCount = friends.reduce((acc, f) => acc + (f.history ? f.history.length : 0), 0);
   const sortedFriends = [...friends].sort((a, b) => b.count - a.count);
 
 
@@ -197,16 +248,37 @@ function App() {
                   {f.image && <img src={f.image} className="log-friend-img" alt={f.name} />}
                   <span className="log-friend-name">{f.name}</span>
                 </div>
+
+                {/* Global PIN Prompt for Log Deletion */}
+                {isConfirmingLogDelete && targetFriendId === f.id && (
+                  <div className="log-input-area" style={{ marginBottom: '15px', border: '1px solid #ef4444', padding: '10px', borderRadius: '12px' }}>
+                    <div style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '8px', fontWeight: 'bold', textAlign: 'center' }}>Enter PIN to Delete</div>
+                    <input
+                      type="password"
+                      placeholder="PIN"
+                      value={logDeletePin}
+                      onChange={(e) => setLogDeletePin(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleLogPinSubmit()}
+                      className="log-input"
+                      style={{ textAlign: 'center', letterSpacing: '8px' }}
+                      autoFocus
+                    />
+                    <div className="log-btns">
+                      <button className="btn-log-cancel" onClick={() => { setIsConfirmingLogDelete(false); setLogDeletePin(""); }}>Cancel</button>
+                      <button className="btn-log-confirm" onClick={handleLogPinSubmit} style={{ background: '#ef4444' }}>Unlock</button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="history-list">
                   {f.history && f.history.length > 0 ? (
                     f.history.map((log, idx) => (
-                      <div key={idx} className="history-item">
-                        <span className="history-msg">"{log.message}"</span>
-                        <div className="history-meta">
-                          <span className="history-count-badge">#{log.count}</span>
-                          <span className="history-time">{log.timestamp}</span>
-                        </div>
-                      </div>
+                      <HistoryItem
+                        key={idx}
+                        log={log}
+                        index={idx}
+                        onDeleteRequest={(index) => handleLogDeleteRequest(f.id, index)}
+                      />
                     ))
                   ) : (
                     <div className="history-msg" style={{ color: '#94a3b8', fontStyle: 'italic' }}>No logs for this friend.</div>

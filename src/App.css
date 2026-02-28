@@ -567,12 +567,70 @@
   padding: 10px 15px;
   border-radius: 10px;
   border-left: 3px solid var(--lime-glow);
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  /* Prevent text selection during hold */
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+.history-item.delete-mode {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.history-hold-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: #ef4444;
+  transition: width 0.1s linear;
+}
+
+.history-content {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
 }
 
 .history-msg {
   color: #e2e8f0;
   font-size: 0.9rem;
   font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-delete-btn {
+  background: transparent;
+  color: rgba(239, 68, 68, 0.5);
+  /* Red with opacity */
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  animation: slideInRight 0.2s ease-out;
+}
+
+.history-delete-btn:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
 }
 
 .history-meta {

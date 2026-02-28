@@ -85,7 +85,7 @@ const FriendCard = ({ friend, onIncrease, onDecrease, showActions = true }) => {
             </div>
             <div className="card-info">
                 <h3>{friend.name}</h3>
-                <div className="count-number">{friend.count}</div>
+                <div className="count-number">{friend.history ? friend.history.length : 0}</div>
 
                 {/* Abuse Log Prompt */}
                 {showActions && isLogging && (
